@@ -26,7 +26,7 @@ def get_good_quality_mask(qc_da: xr.DataArray) -> xr.DataArray:
 
     # convert into binary and check last 2 bits
     # keep only the good stuff where bits 0-1 == '00'
-    good_vals = [q for q in unique_vals if np.binary_repr(q, width=16)[-2:] == "00"]
+    good_vals = [q for q in unique_vals if np.binary_repr(q.astype(int), width=16)[-2:] == "00"]
 
     # return the mask where QC values are in the good_vals list
     return qc_da.isin(good_vals)
