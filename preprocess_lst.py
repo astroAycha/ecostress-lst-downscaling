@@ -32,7 +32,7 @@ def get_good_quality_mask(qc_da: xr.DataArray) -> xr.DataArray:
     return qc_da.isin(good_vals)
 
 
-def load_and_mask_lst(lst_file: str, qc_file: str) -> xr.DataArray | None:
+def qc_mask_lst(lst_file: str, qc_file: str) -> xr.DataArray | None:
     """
     Load LST file, apply QC mask, and return a masked DataArray ready for stacking.
     Returns None if no good pixels remain after masking.
@@ -62,10 +62,63 @@ def load_and_mask_lst(lst_file: str, qc_file: str) -> xr.DataArray | None:
 
     # report fraction of valid pixels after masking
     valid_frac = float(lst_masked.notnull().mean())
-    print(f"  QC mask applied — {valid_frac:.1%} pixels retained")
+    print(f"  QC mask applied >>> {valid_frac:.1%} pixels retained")
 
     if valid_frac == 0:
         print(" >>> Skipping: no good pixels after QC masking")
         return None
 
     return lst_masked
+
+###########################
+def clip_and_water_mask_lst(
+    lst_masked: xr.DataArray,
+    water_file: str,
+    aoi: tuple,
+    target_crs: str = "EPSG:32617",
+) -> xr.DataArray | None:
+    """
+    Clip, reproject, and apply water mask to a QC-masked LST DataArray.
+
+    Parameters
+    ----------
+    lst_masked : xr.DataArray
+        Output of qc_mask_lst — QC-masked LST in native CRS.
+    water_file : str
+        Path to the ECOv002*_water.tif file for the same granule.
+    aoi : tuple
+        Bounding box (min_lon, min_lat, max_lon, max_lat) in EPSG:4326.
+    target_crs : str
+        CRS to reproject into. Default is UTM 17N for Toronto.
+
+    Returns
+    -------
+    xr.DataArray or None
+    """
+    # read the water mask and reproject to match LST CRS
+    water = rioxarray.open_rasterio(water_file, masked=True).squeeze()
+    water = water.rio.reproject_match(lst_masked)
+
+    # mask water pixels (water == 1)
+    lst_land = lst_masked.where(water != 1)
+
+    # reproject to target CRS
+    lst_reproj = lst_land.rio.reproject(target_crs)
+
+    # clip to the AOI
+    west, south, east, north = aoi
+    lst_clipped = lst_reproj.rio.clip_box(
+        minx=west,
+        miny=south,
+        maxx=east,
+        maxy=north,
+        crs="EPSG:4326", 
+    )
+
+    land_frac = float(lst_clipped.notnull().mean())
+
+    if land_frac == 0:
+        print(" >>> Skipping: no good pixels after preprocessing")
+        return None
+
+    return lst_clipped
