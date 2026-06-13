@@ -71,6 +71,7 @@ def qc_mask_lst(lst_file: str, qc_file: str) -> xr.DataArray | None:
     return lst_masked
 
 ###########################
+
 def clip_and_water_mask_lst(
     lst_masked: xr.DataArray,
     water_file: str,
