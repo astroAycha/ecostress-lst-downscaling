@@ -6,4 +6,6 @@ resolution. The project demonstrates urban heat mapping and thermal
 analysis for Toronto using satellite-derived predictor variables and
 high-resolution geospatial data.
 
+![Toronto heat map](TO_LST_overlay.png)
+
 This project is based on this [NASA ARSET training module](https://www.earthdata.nasa.gov/learn/trainings/introduction-thermal-remote-sensing-applications-urban-heat-island-mapping)
