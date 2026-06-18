@@ -4,33 +4,17 @@ import rioxarray
 
 def get_good_quality_mask(qc_da: xr.DataArray) -> xr.DataArray:
     """
-    Build a boolean mask from the ECOSTRESS QC band.
-    Returns True where pixels are good quality (bits 0-1 == '00').
-    
-    Parameters
-    ----------
-    qc_da : xr.DataArray
-        QC band loaded from the ECOv002*_QC.tif file 
-        Values are 16-bit integers where bits 0-1 encode quality flags:
-        '00' = good quality pixels
-        '01', '10', '11' = various issues (clouds, missing data, etc.)
-    
-    Returns
-    -------
-    xr.DataArray
-        Boolean mask, True = keep, False = discard
+    Returns True where bits 0-1 == 0b00 (good quality).
+    Works directly on the array without converting to Python scalars.
     """
+    quality_vals = np.unique(qc_da.values)
+    quality_vals = quality_vals[~np.isnan(quality_vals)].astype(np.uint16).tolist()
 
-    # read unique QC values
-    unique_vals = np.unique(qc_da.values.tolist())
+    good_q = [q for q in quality_vals if np.binary_repr(q, width=16)[-2:] == '00']
 
-    # convert into binary and check last 2 bits
-    # keep only the good stuff where bits 0-1 == '00'
-    good_vals = [q for q in unique_vals if np.binary_repr(q.astype(int), width=16)[-2:] == "00"]
-
-    # return the mask where QC values are in the good_vals list
-    return qc_da.isin(good_vals)
-
+    return xr.DataArray(np.isin(qc_da, good_q), 
+                        dims=qc_da.dims, 
+                        coords=qc_da.coords)
 
 def qc_mask_lst(lst_file: str, qc_file: str) -> xr.DataArray | None:
     """
@@ -102,6 +86,9 @@ def clip_and_water_mask_lst(
 
     # mask water pixels (water == 1)
     lst_land = lst_masked.where(water != 1)
+
+    # ensure water pixels are set to NaN
+    lst_land = lst_land.rio.write_nodata(np.nan)
 
     # reproject to target CRS
     lst_reproj = lst_land.rio.reproject(target_crs)
