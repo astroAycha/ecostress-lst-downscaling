@@ -4,17 +4,39 @@ import rioxarray
 
 def get_good_quality_mask(qc_da: xr.DataArray) -> xr.DataArray:
     """
-    Returns True where bits 0-1 == 0b00 (good quality).
-    Works directly on the array without converting to Python scalars.
+    Build a boolean mask from the ECOSTRESS QC band using bitwise operations.
+    Returns True where pixels are good or acceptable quality (bits 0-1 == 00 or 01).
+
+    The QC band encodes quality information in binary. We only care about the
+    lowest 2 bits (bits 0 and 1), which encode the main quality flag:
+        00 -> good quality          -> keep (True)
+        01 -> acceptable quality    -> keep (True)
+        10 -> poor quality          -> discard (False)
+        11 -> bad / missing data    -> discard (False)
+
+    Parameters
+    ----------
+    qc_da : xr.DataArray
+        QC band loaded from the ECOv002*_QC.tif file.
+
+    Returns
+    -------
+    xr.DataArray
+        Boolean mask, True = keep, False = discard.
     """
-    quality_vals = np.unique(qc_da.values)
-    quality_vals = quality_vals[~np.isnan(quality_vals)].astype(np.uint16).tolist()
+    # NaN pixels (no QC data) are filled with 255 = 0b11111111
+    # so they evaluate to bits 0-1 = 11 and get discarded safely
+    qc_int = qc_da.fillna(255).astype(np.uint16)
 
-    good_q = [q for q in quality_vals if np.binary_repr(q, width=16)[-2:] == '00']
+    # AND with 0b11 (= 3) zeroes out all bits except bits 0 and 1
+    # e.g. 0b10110100 & 0b11 = 0b00 → good
+    #      0b10110101 & 0b11 = 0b01 → acceptable
+    #      0b10110110 & 0b11 = 0b10 → poor → discard
+    bits_0_1 = qc_int & 0b11
 
-    return xr.DataArray(np.isin(qc_da, good_q), 
-                        dims=qc_da.dims, 
-                        coords=qc_da.coords)
+    # keep pixels where the lowest 2 bits are 00 or 01 (values 0 and 1)
+    return bits_0_1 < 2
+
 
 def qc_mask_lst(lst_file: str, qc_file: str) -> xr.DataArray | None:
     """
