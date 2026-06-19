@@ -107,8 +107,8 @@ def keep_valid_granules(granules: list) -> list[dict]:
 
         print(f"{granule_id[-40:]}  valid: {valid_frac:.1%}")
 
-        if valid_frac <= 0.7:
-            print(" >>> Skipping file (too many masked pixels)")
+        if valid_frac <= 0.75:
+            print(" >>> Skipping file: too many Null pixels")
             continue
         
         # Download the water and QC mask files as well
