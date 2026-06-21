@@ -80,21 +80,26 @@ def qc_mask_lst(lst_file: str, qc_file: str) -> xr.DataArray | None:
 
 ###########################
 
-def clip_and_water_mask_lst(lst_masked: xr.DataArray,
+def clip_and_mask_lst(lst_masked: xr.DataArray,
                         water_file: str,
+                        cloud_file: str,
                         aoi: tuple,
                         target_crs: str) -> xr.DataArray | None:
     """
-    Clip, reproject, and apply water mask to a QC-masked LST DataArray
+    Clip, reproject, and apply water and cloud masks to 
+    a QC-masked LST DataArray
 
     Parameters
     ----------
     lst_masked : xr.DataArray
         LST DataArray after QC masking, with rioxarray metadata
     water_file : str
-        Path to the water mask raster file (e.g. JRC Global Surface Water)
+        Path to the water mask raster file
+    cloud_file : str
+        Path to the cloud mask raster file
     aoi : tuple
-        (west, south, east, north) bounding box of the area of interest in EPSG:4326
+        (west, south, east, north) bounding box of the area of interest
+          in EPSG:4326
     target_crs : str
         Target CRS for reprojection (e.g. "EPSG:32610" for UTM 10N)
     
@@ -110,12 +115,19 @@ def clip_and_water_mask_lst(lst_masked: xr.DataArray,
     water = rioxarray.open_rasterio(water_file, masked=True).squeeze()
     water = water.rio.reproject_match(lst_masked)
 
+    # read the cloud mask and reproject to match LST CRS
+    cloud = rioxarray.open_rasterio(cloud_file, masked=True).squeeze()
+    cloud = cloud.rio.reproject_match(lst_masked)
+
     # mask water pixels (water == 1)
     lst_land = lst_masked.where(water != 1)
-    lst_land = lst_land.rio.write_nodata(np.nan)
+
+    # mask cloud pixels (cloud == 1)
+    lst_land_no_cloud = lst_land.where(cloud != 1)
+    lst_land_no_cloud = lst_land_no_cloud.rio.write_nodata(np.nan)
 
     # reproject to target CRS
-    lst_reproj = lst_land.rio.reproject(target_crs)
+    lst_reproj = lst_land_no_cloud.rio.reproject(target_crs)
 
     # clip to the AOI
     west, south, east, north = aoi
