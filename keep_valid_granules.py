@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from datetime import timezone, timedelta, datetime
 from zoneinfo import ZoneInfo
@@ -57,7 +58,8 @@ def get_valid_pixel_fraction(url: str, fs) -> float:
 
 #######
 
-def keep_valid_granules(granules: list) -> list[dict]:
+def keep_valid_granules(granules: list,
+                        download_dir: str) -> list[dict]:
     """
     Take a list of ECOSTRESS granulues, filter out those that are outside 
     the desired time window or too cloudy, and return a list of dicts 
@@ -68,7 +70,8 @@ def keep_valid_granules(granules: list) -> list[dict]:
     ----------
     granules : list
         List of EarthAccess granule objects.
-    
+    download_dir : str
+        Local directory to download the granule files.
     Returns
     -------
     list of dict
@@ -118,9 +121,10 @@ def keep_valid_granules(granules: list) -> list[dict]:
 
         # Download the files locally using earthaccess
         #  which handles authentication and retries
+        os.makedirs(download_dir, exist_ok=True)
         local_paths = earthaccess.download(
             [lst_url, water_url, qc_url],
-            local_path="./ecostress_data",
+            local_path=f"./{download_dir}",
         )
 
         lst_dest, water_dest, qc_dest = local_paths
