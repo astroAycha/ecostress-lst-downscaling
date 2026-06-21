@@ -114,26 +114,30 @@ def keep_valid_granules(granules: list,
             print(" >>> Skipping file: too many Null pixels")
             continue
         
-        # Download the water and QC mask files as well
+        # Download the water, QC, and cloud mask files as well
         # Needed later for masking
         water_url = next(l for l in granule.data_links() if l.endswith("_water.tif"))
         qc_url    = next(l for l in granule.data_links() if l.endswith("_QC.tif"))
+        cloud_url = next((l for l in granule.data_links() if l.endswith("_cloud.tif")), None)
 
         # Download the files locally using earthaccess
         #  which handles authentication and retries
         os.makedirs(download_dir, exist_ok=True)
-        local_paths = earthaccess.download(
-            [lst_url, water_url, qc_url],
-            local_path=f"./{download_dir}",
+        local_paths = earthaccess.download([lst_url, 
+                                            water_url, 
+                                            qc_url,
+                                            cloud_url],
+                                            local_path=f"./{download_dir}",
         )
 
-        lst_dest, water_dest, qc_dest = local_paths
+        lst_dest, water_dest, qc_dest, cloud_dest = local_paths
 
         good_granules.append({
             "granule":    granule,
             "lst_file":   str(lst_dest),
             "water_file": str(water_dest),
             "qc_file":    str(qc_dest),
+            "cloud_file": str(cloud_dest),
         })
 
     return good_granules
