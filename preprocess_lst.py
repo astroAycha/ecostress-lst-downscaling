@@ -1,6 +1,8 @@
 import xarray as xr
 import numpy as np
 import rioxarray
+from rioxarray.exceptions import NoDataInBounds, OneDimensionalRaster
+
 
 def get_good_quality_mask(qc_da: xr.DataArray) -> xr.DataArray:
     """
@@ -78,38 +80,38 @@ def qc_mask_lst(lst_file: str, qc_file: str) -> xr.DataArray | None:
 
 ###########################
 
-def clip_and_water_mask_lst(
-    lst_masked: xr.DataArray,
-    water_file: str,
-    aoi: tuple,
-    target_crs: str = "EPSG:32617",
-) -> xr.DataArray | None:
+def clip_and_water_mask_lst(lst_masked: xr.DataArray,
+                        water_file: str,
+                        aoi: tuple,
+                        target_crs: str) -> xr.DataArray | None:
     """
-    Clip, reproject, and apply water mask to a QC-masked LST DataArray.
+    Clip, reproject, and apply water mask to a QC-masked LST DataArray
 
     Parameters
     ----------
     lst_masked : xr.DataArray
-        Output of qc_mask_lst — QC-masked LST in native CRS.
+        LST DataArray after QC masking, with rioxarray metadata
     water_file : str
-        Path to the ECOv002*_water.tif file for the same granule.
+        Path to the water mask raster file (e.g. JRC Global Surface Water)
     aoi : tuple
-        Bounding box (min_lon, min_lat, max_lon, max_lat) in EPSG:4326.
+        (west, south, east, north) bounding box of the area of interest in EPSG:4326
     target_crs : str
-        CRS to reproject into. Default is UTM 17N for Toronto.
-
+        Target CRS for reprojection (e.g. "EPSG:32610" for UTM 10N)
+    
     Returns
     -------
     xr.DataArray or None
+         Preprocessed LST DataArray clipped to AOI, 
+         with water pixels masked out and reprojected to target CRS. 
+         Returns None if no good pixels remain after processing.
     """
+
     # read the water mask and reproject to match LST CRS
     water = rioxarray.open_rasterio(water_file, masked=True).squeeze()
     water = water.rio.reproject_match(lst_masked)
 
     # mask water pixels (water == 1)
     lst_land = lst_masked.where(water != 1)
-
-    # ensure water pixels are set to NaN
     lst_land = lst_land.rio.write_nodata(np.nan)
 
     # reproject to target CRS
@@ -117,13 +119,17 @@ def clip_and_water_mask_lst(
 
     # clip to the AOI
     west, south, east, north = aoi
-    lst_clipped = lst_reproj.rio.clip_box(
-        minx=west,
-        miny=south,
-        maxx=east,
-        maxy=north,
-        crs="EPSG:4326", 
-    )
+    try:
+        lst_clipped = lst_reproj.rio.clip_box(
+            minx=west,
+            miny=south,
+            maxx=east,
+            maxy=north,
+            crs="EPSG:4326",
+        )
+    except (NoDataInBounds, OneDimensionalRaster):
+        print(" >>> Skipping: granule does not meaningfully overlap AOI")
+        return None
 
     land_frac = float(lst_clipped.notnull().mean())
 
