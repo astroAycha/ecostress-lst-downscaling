@@ -224,3 +224,5 @@ lst_downscaling_files/
 _quarto.yml
 includes/
 00-scratchpad.ipynb
+toronto_ecostress_data/
+vancouver_ecostress_data/
