@@ -10,24 +10,22 @@ import earthaccess
 # dir to save downloaded files (LST, water mask, QC mask)
 Path("./ecostress_data").mkdir(parents=True, exist_ok=True)
 
-# Toronto timezone for local time filtering
-# TODO: ideally this should be parameterized 
-toronto_tz = ZoneInfo("America/Toronto")
 
-
-def is_afternoon(granule) -> bool:
+def is_afternoon(granule, timezone: str) -> bool:
     """
     Check if the granule's acquisition time is between 12:00 and 18:00 local time.
 
     Parameters
     ----------
     granule : EarthAccess granule object with UMM metadata containing TemporalExtent.
+    timezone : str
+        Timezone string for local time filtering (e.g., "America/Toronto")
     """
     # read the time string from the granule metadata
     time_str = granule["umm"]["TemporalExtent"]["RangeDateTime"]["BeginningDateTime"]
     # parse it as UTC, and convert to local time
     utc_time = datetime.fromisoformat(time_str.replace("Z", "+00:00"))
-    local_time = utc_time.astimezone(toronto_tz)
+    local_time = utc_time.astimezone(ZoneInfo(timezone))
 
     return 12 <= local_time.hour <= 18
 
@@ -59,7 +57,8 @@ def get_valid_pixel_fraction(url: str, fs) -> float:
 #######
 
 def keep_valid_granules(granules: list,
-                        download_dir: str) -> list[dict]:
+                        download_dir: str,
+                        timezone: str) -> list[dict]:
     """
     Take a list of ECOSTRESS granulues, filter out those that are outside 
     the desired time window or too cloudy, and return a list of dicts 
@@ -69,9 +68,11 @@ def keep_valid_granules(granules: list,
     Parameters
     ----------
     granules : list
-        List of EarthAccess granule objects.
+        List of EarthAccess granule objects
     download_dir : str
-        Local directory to download the granule files.
+        Local directory to download the granule files
+    timezone : str
+        Timezone string for local time filtering (e.g., "America/Toronto")
     Returns
     -------
     list of dict
@@ -91,7 +92,7 @@ def keep_valid_granules(granules: list,
 
     for granule in granules:
         # first filter by acquisition time (local afternoon)
-        if not is_afternoon(granule):
+        if not is_afternoon(granule, timezone):
             time_str = granule["umm"]["TemporalExtent"]["RangeDateTime"]["BeginningDateTime"]
             print(f"Skipping (outside time window): {time_str}")
             continue
