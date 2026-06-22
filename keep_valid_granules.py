@@ -58,7 +58,8 @@ def get_valid_pixel_fraction(url: str, fs) -> float:
 
 def keep_valid_granules(granules: list,
                         download_dir: str,
-                        timezone: str) -> list[dict]:
+                        timezone: str,
+                        valid_pixel_threshold: float = 0.7) -> list[dict]:
     """
     Take a list of ECOSTRESS granulues, filter out those that are outside 
     the desired time window or too cloudy, and return a list of dicts 
@@ -73,6 +74,10 @@ def keep_valid_granules(granules: list,
         Local directory to download the granule files
     timezone : str
         Timezone string for local time filtering (e.g., "America/Toronto")
+
+    valid_pixel_threshold : float, optional
+        Minimum fraction of valid pixels required to keep the granule 
+        (default: 0.7)
     Returns
     -------
     list of dict
@@ -111,7 +116,7 @@ def keep_valid_granules(granules: list,
 
         print(f"{granule_id[-40:]}  valid: {valid_frac:.1%}")
 
-        if valid_frac <= 0.75:
+        if valid_frac <= valid_pixel_threshold:
             print(" >>> Skipping file: too many Null pixels")
             continue
         
