@@ -15,9 +15,11 @@ class GranuleFilter:
     """
 
     def __init__(self, 
+                 aoi_name: str,
                  timezone: str, 
                  valid_pixel_threshold: float = 0.7):
         
+        self.aoi_name = aoi_name
         self.timezone = timezone
         self.valid_pixel_threshold = valid_pixel_threshold
 
@@ -87,7 +89,6 @@ class GranuleFilter:
 
     def keep_valid_granules(self, 
                             granules: list,
-                            download_dir: str,
                             day_or_night: str = "day") -> list[dict]:
         """
         Take a list of ECOSTRESS granulues, filter out those that are outside 
@@ -99,8 +100,6 @@ class GranuleFilter:
         ----------
         granules : list
             List of EarthAccess granule objects
-        download_dir : str
-            Local directory to download the granule files
         day_or_night : str, optional
             Specify whether to filter for "day" or "night" granules (default: "day")
 
@@ -114,6 +113,8 @@ class GranuleFilter:
             - "qc_file": local path to the downloaded QC mask GeoTIFF
 
         """
+        download_dir = f"{self.aoi_name}_ecostress_data"
+
         # Set up an authenticated fsspec filesystem for 
         # streaming access to the LST files
         # only needed for streaming check of valid pixel fraction
