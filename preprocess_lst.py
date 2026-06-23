@@ -40,7 +40,8 @@ def get_good_quality_mask(qc_da: xr.DataArray) -> xr.DataArray:
     return bits_0_1 < 2
 
 
-def qc_mask_lst(lst_file: str, qc_file: str) -> xr.DataArray | None:
+def qc_mask_lst(lst_file: str, 
+                qc_file: str) -> xr.DataArray | None:
     """
     Load LST file, apply QC mask, and return a masked DataArray ready for stacking.
     Returns None if no good pixels remain after masking.
@@ -84,7 +85,8 @@ def clip_and_mask_lst(lst_masked: xr.DataArray,
                         water_file: str,
                         cloud_file: str,
                         aoi: tuple,
-                        target_crs: str) -> xr.DataArray | None:
+                        target_crs: str,
+                        cloud_cover_frac: int = 10) -> xr.DataArray | None:
     """
     Clip, reproject, and apply water and cloud masks to 
     a QC-masked LST DataArray
@@ -92,7 +94,7 @@ def clip_and_mask_lst(lst_masked: xr.DataArray,
     Parameters
     ----------
     lst_masked : xr.DataArray
-        LST DataArray after QC masking, with rioxarray metadata
+        LST DataArray after QC masking using `qc_mask_lst()`
     water_file : str
         Path to the water mask raster file
     cloud_file : str
@@ -102,6 +104,10 @@ def clip_and_mask_lst(lst_masked: xr.DataArray,
           in EPSG:4326
     target_crs : str
         Target CRS for reprojection (e.g. "EPSG:32610" for UTM 10N)
+    cloud_cover_frac : int
+        Maximum allowed cloud cover fraction (0-100) for the granule. 
+        If the cloud mask indicates more than this fraction of pixels 
+        are cloudy, the granule is skipped.
     
     Returns
     -------
@@ -119,32 +125,34 @@ def clip_and_mask_lst(lst_masked: xr.DataArray,
     cloud = rioxarray.open_rasterio(cloud_file, masked=True).squeeze()
     cloud = cloud.rio.reproject_match(lst_masked)
 
-    # mask water pixels (water == 1)
-    lst_land = lst_masked.where(water != 1)
+    # mask out water and cloud pixels from the LST
+    # keep only land pixels that are not cloudy
+    lst_land = lst_masked.where((water != 1) & (cloud != 1))
 
-    # mask cloud pixels (cloud == 1)
-    lst_land_no_cloud = lst_land.where(cloud != 1)
-    lst_land_no_cloud = lst_land_no_cloud.rio.write_nodata(np.nan)
+    lst_reproj = lst_land.rio.reproject(target_crs)
 
-    # reproject to target CRS
-    lst_reproj = lst_land_no_cloud.rio.reproject(target_crs)
-
-    # clip to the AOI
+    # clip to AOI and check if any good pixels remain
     west, south, east, north = aoi
     try:
         lst_clipped = lst_reproj.rio.clip_box(
-            minx=west,
-            miny=south,
-            maxx=east,
-            maxy=north,
-            crs="EPSG:4326",
-        )
+            minx=west, miny=south, maxx=east, maxy=north, crs="EPSG:4326")
+        
     except (NoDataInBounds, OneDimensionalRaster):
         print(" >>> Skipping: granule does not meaningfully overlap AOI")
         return None
+    
+    # check cloud cover fraction in the AOI
+    if cloud_cover_frac is not None:
+        total_pixels = lst_clipped.size
+        cloudy_pixels = (cloud.rio.clip_box(
+            minx=west, miny=south, maxx=east, maxy=north, crs="EPSG:4326") == 1).sum().item()
+        cloud_cover = (cloudy_pixels / total_pixels) * 100 if total_pixels > 0 else 100
+        print(f"  Cloud cover in AOI: {cloud_cover:.1f}%")
+        if cloud_cover > cloud_cover_frac:
+            print(f" >>> Skipping: cloud cover {cloud_cover:.1f}% exceeds threshold of {cloud_cover_frac}%")
+            return None
 
     land_frac = float(lst_clipped.notnull().mean())
-
     if land_frac == 0:
         print(" >>> Skipping: no good pixels after preprocessing")
         return None
