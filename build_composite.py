@@ -1,3 +1,4 @@
+from typing import Dict
 import numpy as np
 from rasterio.warp import transform_bounds
 from affine import Affine
@@ -6,18 +7,20 @@ import xarray as xr
 from preprocess_lst import qc_mask_lst, clip_and_mask_lst
 
 
-def build_reference_grid(aoi, target_crs, resolution):
+def build_reference_grid(aoi: tuple, 
+                         target_crs: str, 
+                         resolution: float) -> tuple[Affine, tuple[int, int]]:
     """
     Build a target transform + shape spanning the full AOI,
     (independent of any individual tile's footprint)
 
     Parameters
     ----------
-    aoi: 
+    aoi: tuple
         tuple of (west, south, east, north) in EPSG:4326
-    target_crs: 
+    target_crs: str
         target coordinate reference system for reprojection
-    resolution: 
+    resolution: float
         desired pixel size in target CRS units (e.g. meters)
 
     Returns
@@ -41,7 +44,12 @@ def build_reference_grid(aoi, target_crs, resolution):
 
 ####################
 
-def build_composite(entries, aoi, target_crs, transform, shape):
+def build_composite(entries: list[Dict], 
+                    aoi: tuple, 
+                    target_crs: str, 
+                    transform: Affine, 
+                    shape: tuple[int, int],
+                    max_cloud_cover: int) -> xr.DataArray | None:
     """
     Build a composite LST DataArray for a single tile by:
     1. Applying QC and water masks to each granule's LST
@@ -56,17 +64,20 @@ def build_composite(entries, aoi, target_crs, transform, shape):
 
     Parameters
     ----------
-    entries: 
-        list of {'lst_file', 'water_file', 'qc_file'} for a given tile,
-        across multiple acquisition dates.
-    aoi: 
+    entries: list[Dict]
+        list of {'lst_file', 'water_file', 'qc_file', 'cloud_file'} 
+        for a given tile, across multiple acquisition dates.
+    aoi: tuple
         tuple of (west, south, east, north) defining the area of interest
-    target_crs: 
+    target_crs: str
         target coordinate reference system for reprojection
-    transform: 
+    transform: Affine
         affine transform for the target grid
-    shape: 
+    shape: tuple[int, int]
         tuple of (height, width) for the target grid
+    max_cloud_cover: int
+        maximum allowed cloud cover fraction (0-100) for a granule to be 
+        included
 
     Returns
     -------
@@ -85,12 +96,14 @@ def build_composite(entries, aoi, target_crs, transform, shape):
                                     entry['water_file'], 
                                     entry['cloud_file'], 
                                     aoi, 
-                                    target_crs=target_crs
-                                    )
+                                    target_crs=target_crs,
+                                    max_cloud_cover=max_cloud_cover)
         if lst_clipped is None:
             continue
 
-        lst_matched = lst_clipped.rio.reproject(target_crs, shape=shape, transform=transform)
+        lst_matched = lst_clipped.rio.reproject(target_crs, 
+                                                shape=shape, 
+                                                transform=transform)
         matched_arrays.append(lst_matched)
 
     if not matched_arrays:
@@ -105,20 +118,55 @@ def build_composite(entries, aoi, target_crs, transform, shape):
 
 ########################
 
-def edge_distance_weight(da, feather_px=15):
+def edge_distance_weight(da: xr.DataArray, 
+                         feather_px: int = 15) -> xr.DataArray:
     """
     Weight map that ramps from 0 at the edge of valid data up to 1
     after `feather_px` pixels inward. Used to feather tile boundaries.
+
+    Parameters
+    ----------
+    da : xr.DataArray
+        Input DataArray with valid and invalid pixels (NaN)
+    feather_px : int
+        Number of pixels over which to feather the edge (default: 15)
+
+    Returns
+    -------
+    xr.DataArray
+        Weight map with values in [0, 1], same shape and coords as input.
+    
     """
     valid = da.notnull().values
-    dist = distance_transform_edt(valid)          # pixels to nearest invalid/edge pixel
-    weight = np.clip(dist / feather_px, 0, 1)      # ramp 0 → 1 over feather_px pixels
+    dist = distance_transform_edt(valid) # pixels to nearest invalid/edge pixel
+    weight = np.clip(dist / feather_px, 0, 1) # ramp 0 to 1 over feather_px pixels
     return xr.DataArray(weight, coords=da.coords, dims=da.dims)
 
 
 ##############################
 
-def merge_tiles(tile_composites, target_crs, feather_px=15):
+def merge_tiles(tile_composites: dict[str, xr.DataArray],
+                 target_crs: str, 
+                 feather_px: int = 15) -> xr.DataArray:
+    """
+    Feather-blend multiple tile composites into a single mosaic.
+
+    Parameters
+    ----------
+    tile_composites: dict
+        dict of {tile_id: xr.DataArray} for each tile's composite LST
+
+    target_crs: str
+        target coordinate reference system for reprojection
+    
+    feather_px: int
+        number of pixels over which to feather tile edges (default 15)
+
+    Returns
+    -------
+    xr.DataArray
+        Feather-blended mosaic of all tiles.
+    """
     arrays = list(tile_composites.values())
     weights = [edge_distance_weight(da, feather_px) for da in arrays]
 
@@ -126,7 +174,7 @@ def merge_tiles(tile_composites, target_crs, feather_px=15):
     stacked_weights = xr.concat(weights, dim='tile').where(stacked_data.notnull(), 0)
 
     weighted_sum = (stacked_data.fillna(0) * stacked_weights).sum(dim='tile')
-    weight_total = stacked_weights.sum(dim='tile')
+    weight_total = stacked_weights.sum(dim='tile', skipna=True)
 
     mosaic = (weighted_sum / weight_total).where(weight_total > 0)
     mosaic = mosaic.rio.write_crs(target_crs).rio.write_nodata(np.nan)
