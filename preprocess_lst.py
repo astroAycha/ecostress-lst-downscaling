@@ -86,7 +86,7 @@ def clip_and_mask_lst(lst_masked: xr.DataArray,
                         cloud_file: str,
                         aoi: tuple,
                         target_crs: str,
-                        cloud_cover_frac: int = 10) -> xr.DataArray | None:
+                        max_cloud_cover: int = 20) -> xr.DataArray | None:
     """
     Clip, reproject, and apply water and cloud masks to 
     a QC-masked LST DataArray
@@ -104,7 +104,7 @@ def clip_and_mask_lst(lst_masked: xr.DataArray,
           in EPSG:4326
     target_crs : str
         Target CRS for reprojection (e.g. "EPSG:32610" for UTM 10N)
-    cloud_cover_frac : int
+    max_cloud_cover : int
         Maximum allowed cloud cover fraction (0-100) for the granule. 
         If the cloud mask indicates more than this fraction of pixels 
         are cloudy, the granule is skipped.
@@ -142,14 +142,14 @@ def clip_and_mask_lst(lst_masked: xr.DataArray,
         return None
     
     # check cloud cover fraction in the AOI
-    if cloud_cover_frac is not None:
+    if max_cloud_cover is not None:
         total_pixels = lst_clipped.size
         cloudy_pixels = (cloud.rio.clip_box(
             minx=west, miny=south, maxx=east, maxy=north, crs="EPSG:4326") == 1).sum().item()
         cloud_cover = (cloudy_pixels / total_pixels) * 100 if total_pixels > 0 else 100
         print(f"  Cloud cover in AOI: {cloud_cover:.1f}%")
-        if cloud_cover > cloud_cover_frac:
-            print(f" >>> Skipping: cloud cover {cloud_cover:.1f}% exceeds threshold of {cloud_cover_frac}%")
+        if cloud_cover > max_cloud_cover:
+            print(f" >>> Skipping: cloud cover {cloud_cover:.1f}% exceeds threshold of {max_cloud_cover}%")
             return None
 
     land_frac = float(lst_clipped.notnull().mean())
