@@ -21,9 +21,6 @@ class GranuleFilter:
         self.timezone = timezone
         self.valid_pixel_threshold = valid_pixel_threshold
 
-        # dir to save downloaded files (LST, water mask, QC mask)
-        Path("./ecostress_data").mkdir(parents=True, exist_ok=True)
-
 
     def is_day(self, 
                 granule) -> bool:
