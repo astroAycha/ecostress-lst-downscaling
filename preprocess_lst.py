@@ -2,6 +2,7 @@ import xarray as xr
 import numpy as np
 import rioxarray
 from rioxarray.exceptions import NoDataInBounds, OneDimensionalRaster
+import rasterio
 
 
 def get_good_quality_mask(qc_da: xr.DataArray) -> xr.DataArray:
@@ -63,7 +64,8 @@ def qc_mask_lst(lst_file: str,
     qc  = rioxarray.open_rasterio(qc_file,  masked=True).squeeze()
 
     # align QC to LST grid (might not be necessary if already aligned)
-    qc = qc.rio.reproject_match(lst)
+    qc = qc.rio.reproject_match(lst, 
+                                resampling=rasterio.enums.Resampling.nearest)
 
     # apply QC mask to LST
     good_mask = get_good_quality_mask(qc)
@@ -119,11 +121,13 @@ def clip_and_mask_lst(lst_masked: xr.DataArray,
 
     # read the water mask and reproject to match LST CRS
     water = rioxarray.open_rasterio(water_file, masked=True).squeeze()
-    water = water.rio.reproject_match(lst_masked)
+    water = water.rio.reproject_match(lst_masked,
+                                      resampling=rasterio.enums.Resampling.nearest)
 
     # read the cloud mask and reproject to match LST CRS
     cloud = rioxarray.open_rasterio(cloud_file, masked=True).squeeze()
-    cloud = cloud.rio.reproject_match(lst_masked)
+    cloud = cloud.rio.reproject_match(lst_masked,
+                                      resampling=rasterio.enums.Resampling.nearest)
 
     # mask out water and cloud pixels from the LST
     # keep only land pixels that are not cloudy
