@@ -86,6 +86,7 @@ def build_composite(entries: list[Dict],
         remain after masking.
     """
     matched_arrays = []
+    granule_acq_dates = []
 
     for entry in entries:
         lst_masked = qc_mask_lst(entry['lst_file'], entry['qc_file'])
@@ -102,14 +103,24 @@ def build_composite(entries: list[Dict],
             continue
 
         lst_matched = lst_clipped.rio.reproject(target_crs, 
-                                                shape=shape, 
+                                                shape=shape,
+                                                nodata=np.nan,
                                                 transform=transform)
+        # re-apply nodata mask after reproject to catch any bleed-through
+        lst_matched = lst_matched.where(lst_matched != np.nan)
+        lst_matched = lst_matched.rio.write_nodata(np.nan)
+        temp_extent = entry['granule']['umm']['TemporalExtent']
+        acquisition_date = temp_extent['RangeDateTime']['BeginningDateTime']
+        print(f"{acquisition_date}")
+        granule_acq_dates.append(acquisition_date)
         matched_arrays.append(lst_matched)
 
     if not matched_arrays:
         print(" >>> No usable granules for this tile")
         return None
 
+    print(" --->>> Building composite from the following acquisition dates:")
+    print(f" --->>> {len(matched_arrays)} granules used for composite: {granule_acq_dates}")
     stacked = xr.concat(matched_arrays, dim='time')
     composite = stacked.mean(dim='time', skipna=True)
     composite = composite.rio.write_crs(target_crs).rio.write_nodata(np.nan)
