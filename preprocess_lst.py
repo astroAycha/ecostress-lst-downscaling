@@ -76,7 +76,7 @@ def qc_mask_lst(lst_file: str,
     print(f"  QC mask applied >>> {valid_frac:.1%} pixels retained")
 
     if valid_frac == 0:
-        print(" >>> Skipping: no good pixels after QC masking")
+        print(" >>> Skipping: no good pixels after QC masking ❗")
         return None
 
     return lst_masked
@@ -153,12 +153,12 @@ def clip_and_mask_lst(lst_masked: xr.DataArray,
         cloud_cover = (cloudy_pixels / total_pixels) * 100 if total_pixels > 0 else 100
         print(f"  Cloud cover in AOI: {cloud_cover:.1f}%")
         if cloud_cover > max_cloud_cover:
-            print(f" >>> Skipping: cloud cover {cloud_cover:.1f}% exceeds threshold of {max_cloud_cover}%")
+            print(f" >>> Skipping: cloud cover {cloud_cover:.1f}% exceeds threshold of {max_cloud_cover}% 😶‍🌫️")
             return None
 
     land_frac = float(lst_clipped.notnull().mean())
     if land_frac == 0:
-        print(" >>> Skipping: no good pixels after preprocessing")
+        print(" >>> Skipping: no good pixels after preprocessing ❗")
         return None
 
     return lst_clipped
