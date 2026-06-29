@@ -136,6 +136,10 @@ class GranuleFilter:
                         print(f"  >>> Skipping {granule_id[-40:]}: streaming failed after retry ({e})")
                         valid_frac = None
                         break
+            
+            if valid_frac is None or valid_frac < self.valid_pixel_threshold:
+                print(f"  Skipping {granule_id[-40:]}: valid fraction {valid_frac:.2f} below threshold {self.valid_pixel_threshold}")
+                continue
 
             water_url = next(l for l in granule.data_links() if l.endswith("_water.tif"))
             qc_url    = next(l for l in granule.data_links() if l.endswith("_QC.tif"))
