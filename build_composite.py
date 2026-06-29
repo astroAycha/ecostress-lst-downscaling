@@ -89,10 +89,12 @@ def build_composite(entries: list[Dict],
     granule_acq_dates = []
 
     for entry in entries:
+        # apply QC mask
         lst_masked = qc_mask_lst(entry['lst_file'], entry['qc_file'])
         if lst_masked is None:
             continue
 
+        # apply water, cloud masks and clipping to AOI
         lst_clipped = clip_and_mask_lst(lst_masked, 
                                     entry['water_file'], 
                                     entry['cloud_file'], 
@@ -111,16 +113,15 @@ def build_composite(entries: list[Dict],
         lst_matched = lst_matched.rio.write_nodata(np.nan)
         temp_extent = entry['granule']['umm']['TemporalExtent']
         acquisition_date = temp_extent['RangeDateTime']['BeginningDateTime']
-        print(f"{acquisition_date}")
         granule_acq_dates.append(acquisition_date)
         matched_arrays.append(lst_matched)
 
     if not matched_arrays:
-        print(" >>> No usable granules for this tile")
+        print(" >>> No usable granules for this tile after QC, water, and cloud masking ❗")
         return None
 
     print(" --->>> Building composite from the following acquisition dates:")
-    print(f" --->>> {len(matched_arrays)} granules used for composite: {granule_acq_dates}")
+    print(f"{granule_acq_dates}")
     stacked = xr.concat(matched_arrays, dim='time')
     composite = stacked.mean(dim='time', skipna=True)
     composite = composite.rio.write_crs(target_crs).rio.write_nodata(np.nan)
