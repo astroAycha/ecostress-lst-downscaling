@@ -52,7 +52,7 @@ def build_composite(entries: list[Dict],
                     max_cloud_cover: int) -> xr.DataArray | None:
     """
     Build a composite LST DataArray for a single tile by:
-    1. Applying QC and water masks to each granule's LST
+    1. Applying QC, cloud and water masks to each granule's LST
     2. Reprojecting each masked LST to a common grid defined by the 
     AOI and target CRS
     3. Averaging the reprojected LSTs across time to create 
