@@ -98,10 +98,10 @@ class GranuleFilter:
             - "cloud_file": local path to the downloaded cloud mask GeoTIFF
         """
 
-        download_dir = f"{self.aoi_name}_ecostress_data"
         fs = earthaccess.get_fsspec_https_session()
 
         start_hour, end_hour = local_hour_range
+        download_dir = f"{self.aoi_name}_{start_hour}_{end_hour}_ecostress_data"
         good_granules = []
 
         for granule in granules:
