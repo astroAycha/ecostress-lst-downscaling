@@ -45,9 +45,9 @@ def plot_comparison(path_70m: str,
         x='x', y='y',
         cmap=cmap_reversed,
         clim=(vmin, vmax),
-        title=f'{aoi} - {date_time} LST (70 m)', width=400, height=340,
+        title=f'{aoi} - {date_time} LST (70 m)', width=450, height=400,
         xlabel='Easting (m)', ylabel='Northing (m)'
-    ).opts(xrotation=45,
+    ).opts(
         xformatter=NumeralTickFormatter(format='0,0'), 
         yformatter=NumeralTickFormatter(format='0,0'))
 
@@ -55,9 +55,9 @@ def plot_comparison(path_70m: str,
         x='x', y='y',
         cmap=cmap_reversed,
         clim=(vmin, vmax),
-        title=f'{aoi} - {date_time} LST (10 m)', width=400, height=340,
+        title=f'{aoi} - {date_time} LST (10 m)', width=450, height=400,
         xlabel='Easting (m)', ylabel=''
-    ).opts(xrotation=45,
+    ).opts(
         xformatter=NumeralTickFormatter(format='0,0'),
         yformatter=NumeralTickFormatter(format='0,0'))
 
