@@ -26,8 +26,8 @@ def plot_comparison(path_70m: str,
         date and time of the data
     """
 
-    lst_70m= rxr.open_rasterio(path_70m, masked=True).squeeze()
-    lst_10m= rxr.open_rasterio(path_10m, masked=True).squeeze()
+    lst_70m = rxr.open_rasterio(path_70m, masked=True).squeeze()
+    lst_10m = rxr.open_rasterio(path_10m, masked=True).squeeze()
 
     vals = np.concatenate([
         lst_70m.values.ravel(),
@@ -46,19 +46,19 @@ def plot_comparison(path_70m: str,
         cmap=cmap_reversed,
         clim=(vmin, vmax),
         title=f'{aoi} - {date_time} LST (70 m)', width=450, height=400,
-        xlabel='Easting (m)', ylabel='Northing (m)'
+        xlabel='Longitude (°)', ylabel='Latitude (°)'
     ).opts(
-        xformatter=NumeralTickFormatter(format='0,0'), 
-        yformatter=NumeralTickFormatter(format='0,0'))
+        xformatter=NumeralTickFormatter(format='0.00'),
+        yformatter=NumeralTickFormatter(format='0.00'))
 
     plot_10m = lst_10m.rio.reproject("EPSG:4326").hvplot.image(
         x='x', y='y',
         cmap=cmap_reversed,
         clim=(vmin, vmax),
         title=f'{aoi} - {date_time} LST (10 m)', width=450, height=400,
-        xlabel='Easting (m)', ylabel=''
+        xlabel='Longitude (°)', ylabel=''
     ).opts(
-        xformatter=NumeralTickFormatter(format='0,0'),
-        yformatter=NumeralTickFormatter(format='0,0'))
+        xformatter=NumeralTickFormatter(format='0.00'),
+        yformatter=NumeralTickFormatter(format='0.00'))
 
     return plot_70m + plot_10m
